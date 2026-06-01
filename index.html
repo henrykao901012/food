@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>動態增肌營養計算器</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .bar-fill { transition: width .4s cubic-bezier(.22,.61,.36,1), background-color .3s ease; }
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+    body { -webkit-tap-highlight-color: transparent; }
+    /* 設定面板展開收合動畫 */
+    .collapse { transition: max-height .35s ease, opacity .25s ease; overflow: hidden; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased">
+
+  <div class="max-w-md mx-auto min-h-screen bg-slate-50 shadow-xl flex flex-col">
+
+    <!-- ===== 頂部標題 ===== -->
+    <header class="bg-slate-900 text-white px-5 pt-6 pb-5 sticky top-0 z-20 shadow-lg">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h1 class="text-xl font-bold tracking-tight">動態增肌營養計算器</h1>
+          <p id="todayLabel" class="text-xs text-slate-400 mt-0.5">—</p>
+        </div>
+        <span class="text-2xl">💪</span>
+      </div>
+
+      <!-- 模式切換 -->
+      <div class="grid grid-cols-2 gap-2 p-1 bg-slate-800 rounded-xl">
+        <button id="btnTrain" data-mode="train"
+          class="mode-btn py-3 rounded-lg font-semibold text-sm transition-all active:scale-95">
+          🏋️ 訓練日
+        </button>
+        <button id="btnRest" data-mode="rest"
+          class="mode-btn py-3 rounded-lg font-semibold text-sm transition-all active:scale-95">
+          🛋️ 休息日
+        </button>
+      </div>
+    </header>
+
+    <main class="flex-1 px-4 py-4 space-y-4 pb-24">
+
+      <!-- ===== 個人設定面板（可摺疊） ===== -->
+      <section class="bg-white rounded-2xl shadow-sm overflow-hidden">
+        <button id="settingsToggle"
+          class="w-full flex items-center justify-between px-5 py-4 active:bg-slate-50 transition">
+          <span class="font-bold text-slate-700 flex items-center gap-2">
+            <span>⚙️</span> 個人設定
+          </span>
+          <span id="settingsSummary" class="text-xs text-slate-400 font-medium flex items-center gap-1">
+            <span id="summaryText">—</span>
+            <span id="chevron" class="transition-transform inline-block">▾</span>
+          </span>
+        </button>
+
+        <div id="settingsPanel" class="collapse px-5" style="max-height:0; opacity:0;">
+          <div class="space-y-4 pb-5">
+            <!-- 體重 -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1.5">當前體重 (kg)</label>
+              <input id="setWeight" type="number" inputmode="decimal" min="1" step="any"
+                class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-base font-medium
+                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+            </div>
+            <!-- 增肌策略 -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1.5">增肌策略</label>
+              <select id="setStrategy"
+                class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-base font-medium
+                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none">
+                <option value="maintain">維持期 (熱量不盈餘)</option>
+                <option value="clean">乾淨增肌 (熱量盈餘 10%)</option>
+                <option value="aggressive">激進增肌 (熱量盈餘 20%)</option>
+              </select>
+            </div>
+            <!-- 重訓頻率 -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1.5">每週重訓頻率</label>
+              <select id="setFreq"
+                class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-base font-medium
+                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none">
+                <option value="3">一週 3 練 (中強度)</option>
+                <option value="5">一週 5 練 (高強度)</option>
+              </select>
+            </div>
+
+            <!-- 試算預覽 -->
+            <div id="goalPreview" class="bg-slate-50 rounded-xl p-3.5 text-xs text-slate-500 leading-relaxed"></div>
+
+            <button id="saveSettings"
+              class="w-full bg-slate-800 hover:bg-slate-900 active:scale-[.98] text-white font-bold text-base
+                     py-3.5 rounded-xl shadow-md transition-all">
+              💾 儲存設定並重新計算
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 進度條 Dashboard ===== -->
+      <section class="bg-white rounded-2xl shadow-sm p-5 space-y-5">
+        <!-- 蛋白質 -->
+        <div>
+          <div class="flex items-end justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+              <span class="font-semibold text-slate-700">蛋白質</span>
+            </div>
+            <div class="text-right leading-none">
+              <span id="proVal" class="text-2xl font-bold text-slate-900">0</span>
+              <span class="text-slate-400 text-sm">/ <span id="proGoal">0</span> g</span>
+            </div>
+          </div>
+          <div class="h-4 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div id="proBar" class="bar-fill h-full rounded-full bg-blue-500" style="width:0%"></div>
+          </div>
+          <p id="proRemain" class="text-xs mt-1.5 text-slate-500 font-medium">—</p>
+        </div>
+
+        <!-- 碳水 -->
+        <div>
+          <div class="flex items-end justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+              <span class="font-semibold text-slate-700">碳水（澱粉）</span>
+            </div>
+            <div class="text-right leading-none">
+              <span id="carbVal" class="text-2xl font-bold text-slate-900">0</span>
+              <span class="text-slate-400 text-sm">/ <span id="carbGoal">0</span> g</span>
+            </div>
+          </div>
+          <div class="h-4 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div id="carbBar" class="bar-fill h-full rounded-full bg-amber-500" style="width:0%"></div>
+          </div>
+          <p id="carbRemain" class="text-xs mt-1.5 text-slate-500 font-medium">—</p>
+        </div>
+      </section>
+
+      <!-- ===== 飲食簽到輸入區 ===== -->
+      <section class="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+        <h2 class="font-bold text-slate-700 flex items-center gap-2">
+          <span>🍽️</span> 飲食簽到
+        </h2>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1.5">食材品項</label>
+          <select id="foodSelect"
+            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-base font-medium
+                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none">
+          </select>
+        </div>
+
+        <div>
+          <label id="amountLabel" class="block text-xs font-semibold text-slate-500 mb-1.5">實際秤重 (g)</label>
+          <input id="amountInput" type="number" inputmode="decimal" min="0" step="any" placeholder="0"
+            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-base font-medium
+                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+          <p id="preview" class="text-xs text-slate-400 mt-1.5 h-4"></p>
+        </div>
+
+        <button id="addBtn"
+          class="w-full bg-blue-600 hover:bg-blue-700 active:scale-[.98] text-white font-bold text-base
+                 py-4 rounded-xl shadow-md shadow-blue-600/20 transition-all">
+          ＋ 送出紀錄
+        </button>
+      </section>
+
+      <!-- ===== 今日飲食明細 ===== -->
+      <section class="bg-white rounded-2xl shadow-sm p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-bold text-slate-700 flex items-center gap-2">
+            <span>📋</span> 今日明細
+          </h2>
+          <button id="clearBtn"
+            class="text-xs font-semibold text-red-500 hover:text-red-600 active:scale-95 transition
+                   px-3 py-1.5 rounded-lg hover:bg-red-50">
+            🗑️ 清空重來
+          </button>
+        </div>
+        <ul id="logList" class="space-y-2"></ul>
+        <p id="emptyHint" class="text-center text-sm text-slate-400 py-8">今天還沒有紀錄，開吃吧！🍗</p>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+  /* =========================================================
+     【1. 靜態食材庫 FOOD_DB】— 未來要改食材直接改這裡
+     unit:'g'  → 秤重，營養為「每 100g」含量
+     unit:'pc' → 計件，營養為「每 1 件（顆/根）」含量
+     ========================================================= */
+  const FOOD_DB = [
+    { id: 'chicken', name: 'Costco益活雞胸肉', unit: 'g',  protein: 23.0, carb: 0.0 },
+    { id: 't65',     name: 'T65歐包 (麵粉重)', unit: 'g',  protein: 10.5, carb: 76.7 },
+    { id: 'pasta',   name: '義大利麵 (乾重)',   unit: 'g',  protein: 12.5, carb: 75.0 },
+    { id: 'shrimp',  name: '純生蝦仁',          unit: 'g',  protein: 21.0, carb: 0.0 },
+    { id: 'egg',     name: '雞蛋',              unit: 'pc', protein: 6.5,  carb: 0.6, pieceName: '顆' },
+    { id: 'banana',  name: '香蕉',              unit: 'pc', protein: 1.0,  carb: 25.0, pieceName: '根' },
+  ];
+
+  /* 【增肌策略】熱量盈餘 → 直接反映在碳水倍率 */
+  const STRATEGY = {
+    maintain:   { label: '維持期',   mult: 1.00 },
+    clean:      { label: '乾淨增肌', mult: 1.10 },
+    aggressive: { label: '激進增肌', mult: 1.20 },
+  };
+
+  /* 【重訓頻率】決定每公斤碳水基數 (g/kg) */
+  const FREQ = {
+    '3': { label: '3練', carbPerKg: 4.0 },
+    '5': { label: '5練', carbPerKg: 4.8 },
+  };
+
+  /* 休息日碳水 = 訓練日碳水 − 此值 */
+  const REST_DAY_CARB_CUT = 100;
+
+  const DEFAULT_SETTINGS = { weight: 68, strategy: 'clean', freq: '5' };
+  const LS_KEY = 'muscleNutritionApp.v2';
+
+  /* =========================================================
+     【2. 工具函式】
+     ========================================================= */
+  const r1     = n => Math.round(n * 10) / 10;   // 小數一位
+  const round5 = n => Math.round(n / 5) * 5;     // 目標取整到 5 的倍數（漂亮的整數目標）
+  const todayStr = () => {
+    const d = new Date(), p = x => String(x).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  };
+  const nowTime = () => {
+    const d = new Date(), p = x => String(x).padStart(2, '0');
+    return `${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+  const foodById = id => FOOD_DB.find(f => f.id === id);
+
+  function calcNutrition(food, amount) {
+    const factor = food.unit === 'g' ? amount / 100 : amount;
+    return { protein: food.protein * factor, carb: food.carb * factor };
+  }
+
+  /* =========================================================
+     【3. 核心：依生理資訊動態計算每日目標】
+       蛋白質 = 體重 × 2.2（不分訓練/休息日）
+       碳水(訓練日) = 體重 × 每公斤基數(頻率) × 策略倍率
+       碳水(休息日) = 碳水(訓練日) − 100
+     ========================================================= */
+  function computeGoals(s) {
+    const w = Number(s.weight) || 0;
+    const protein = Math.round(w * 2.2);
+    const carbTrain = round5(w * (FREQ[s.freq]?.carbPerKg || 0) * (STRATEGY[s.strategy]?.mult || 1));
+    const carbRest = Math.max(0, carbTrain - REST_DAY_CARB_CUT);
+    return {
+      train: { protein, carb: carbTrain, label: '訓練日 🏋️' },
+      rest:  { protein, carb: carbRest,  label: '休息日 🛋️' },
+    };
+  }
+
+  /* =========================================================
+     【4. 狀態 (localStorage)】
+       state = { date, mode, settings:{weight,strategy,freq}, logs:[...] }
+     ========================================================= */
+  let state = loadState();
+
+  function defaultState() {
+    return { date: todayStr(), mode: 'train', settings: { ...DEFAULT_SETTINGS }, logs: [] };
+  }
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return defaultState();
+      const s = JSON.parse(raw);
+      s.settings = { ...DEFAULT_SETTINGS, ...(s.settings || {}) };
+      if (s.date !== todayStr()) {           // 跨日：清空今日紀錄，保留設定與模式
+        s.date = todayStr();
+        s.logs = [];
+      }
+      return s;
+    } catch (e) {
+      return defaultState();
+    }
+  }
+  function saveState() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+
+  /* =========================================================
+     【5. DOM 參照 + 下拉選單初始化】
+     ========================================================= */
+  const el = id => document.getElementById(id);
+  const foodSelect = el('foodSelect');
+  const amountInput = el('amountInput');
+  const amountLabel = el('amountLabel');
+  const preview = el('preview');
+
+  FOOD_DB.forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = f.id; opt.textContent = f.name;
+    foodSelect.appendChild(opt);
+  });
+
+  /* =========================================================
+     【6. 渲染：Dashboard】
+     ========================================================= */
+  function getTotals() {
+    return state.logs.reduce((a, l) => { a.protein += l.protein; a.carb += l.carb; return a; },
+      { protein: 0, carb: 0 });
+  }
+  function renderDashboard() {
+    const goals = computeGoals(state.settings);
+    const goal = goals[state.mode];
+    const t = getTotals();
+    el('todayLabel').textContent = `${state.date} ・ ${goal.label}`;
+    renderBar('pro', t.protein, goal.protein, 'blue');
+    renderBar('carb', t.carb, goal.carb, 'amber');
+  }
+  function renderBar(prefix, value, goal, color) {
+    const pct = goal > 0 ? Math.min((value / goal) * 100, 100) : 0;
+    const bar = el(prefix + 'Bar');
+    const reached = goal > 0 && value >= goal;
+    el(prefix + 'Val').textContent = r1(value);
+    el(prefix + 'Goal').textContent = goal;
+    bar.style.width = pct + '%';
+    const colorClass = reached ? 'bg-green-500' : (color === 'blue' ? 'bg-blue-500' : 'bg-amber-500');
+    bar.className = 'bar-fill h-full rounded-full ' + colorClass;
+    const remainEl = el(prefix + 'Remain');
+    if (reached) {
+      const over = r1(value - goal);
+      remainEl.textContent = over > 0 ? `✅ 已達標（超出 ${over} g）` : '✅ 已達標';
+      remainEl.className = 'text-xs mt-1.5 text-green-600 font-bold';
+    } else {
+      remainEl.textContent = `還差 ${r1(goal - value)} g`;
+      remainEl.className = 'text-xs mt-1.5 text-slate-500 font-medium';
+    }
+  }
+
+  /* =========================================================
+     【7. 渲染：今日明細】
+     ========================================================= */
+  function renderLogs() {
+    const list = el('logList');
+    list.innerHTML = '';
+    const hint = el('emptyHint');
+    if (state.logs.length === 0) { hint.style.display = 'block'; return; }
+    hint.style.display = 'none';
+
+    [...state.logs].reverse().forEach(log => {
+      const food = foodById(log.foodId);
+      const unitTxt = log.unit === 'g' ? `${r1(log.amount)} g` : `${r1(log.amount)} ${food?.pieceName || '件'}`;
+      const li = document.createElement('li');
+      li.className = 'flex items-center justify-between gap-3 bg-slate-50 rounded-xl px-3.5 py-3';
+      li.innerHTML = `
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2">
+            <span class="font-semibold text-slate-800 truncate">${log.name}</span>
+            <span class="text-[11px] text-slate-400 shrink-0">${log.time}</span>
+          </div>
+          <div class="text-xs text-slate-500 mt-0.5">
+            ${unitTxt}
+            ・ <span class="text-blue-600 font-medium">蛋 ${r1(log.protein)}g</span>
+            ・ <span class="text-amber-600 font-medium">碳 ${r1(log.carb)}g</span>
+          </div>
+        </div>
+        <button data-del="${log.id}"
+          class="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-slate-400
+                 hover:text-red-500 hover:bg-red-50 active:scale-90 transition text-lg">✕</button>`;
+      list.appendChild(li);
+    });
+    list.querySelectorAll('[data-del]').forEach(btn =>
+      btn.addEventListener('click', () => deleteLog(btn.dataset.del)));
+  }
+
+  /* =========================================================
+     【8. 渲染：模式按鈕 / 設定摘要】
+     ========================================================= */
+  function renderModeButtons() {
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      const active = btn.dataset.mode === state.mode;
+      btn.className = 'mode-btn py-3 rounded-lg font-semibold text-sm transition-all active:scale-95 ' +
+        (active ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300');
+    });
+  }
+  function renderSummary() {
+    const s = state.settings;
+    el('summaryText').textContent =
+      `${s.weight}kg ・ ${STRATEGY[s.strategy].label} ・ ${FREQ[s.freq].label}`;
+  }
+
+  /* =========================================================
+     【9. 設定面板：填入欄位 / 試算預覽 / 展開收合】
+     ========================================================= */
+  function fillSettingsForm() {
+    el('setWeight').value = state.settings.weight;
+    el('setStrategy').value = state.settings.strategy;
+    el('setFreq').value = state.settings.freq;
+    renderGoalPreview();
+  }
+  // 讀「表單目前的值」做試算（尚未儲存）
+  function readForm() {
+    return {
+      weight: parseFloat(el('setWeight').value) || 0,
+      strategy: el('setStrategy').value,
+      freq: el('setFreq').value,
+    };
+  }
+  function renderGoalPreview() {
+    const g = computeGoals(readForm());
+    el('goalPreview').innerHTML =
+      `📊 試算結果（按下儲存後套用）<br>
+       蛋白質：<b class="text-blue-600">${g.train.protein} g</b>（訓練/休息日相同）<br>
+       碳水・訓練日：<b class="text-amber-600">${g.train.carb} g</b>
+       ・休息日：<b class="text-amber-600">${g.rest.carb} g</b>`;
+  }
+
+  let panelOpen = false;
+  function setPanel(open) {
+    panelOpen = open;
+    const panel = el('settingsPanel');
+    el('chevron').style.transform = open ? 'rotate(180deg)' : 'rotate(0deg)';
+    if (open) {
+      panel.style.maxHeight = panel.scrollHeight + 'px';
+      panel.style.opacity = '1';
+    } else {
+      panel.style.maxHeight = '0';
+      panel.style.opacity = '0';
+    }
+  }
+
+  /* =========================================================
+     【10. 即時換算預覽 + 輸入框 Label 切換】
+     ========================================================= */
+  function updateAmountLabel() {
+    const food = foodById(foodSelect.value);
+    if (!food) return;
+    if (food.unit === 'pc') {
+      amountLabel.textContent = `輸入數量 (${food.pieceName})`;
+      amountInput.setAttribute('inputmode', 'numeric');
+      amountInput.placeholder = `例如 1 ${food.pieceName}`;
+    } else {
+      amountLabel.textContent = '實際秤重 (g)';
+      amountInput.setAttribute('inputmode', 'decimal');
+      amountInput.placeholder = '例如 150';
+    }
+    updatePreview();
+  }
+  function updatePreview() {
+    const food = foodById(foodSelect.value);
+    const amount = parseFloat(amountInput.value);
+    if (!food || !amount || amount <= 0) { preview.textContent = ''; return; }
+    const n = calcNutrition(food, amount);
+    preview.textContent = `↳ 蛋白質 +${r1(n.protein)}g ・ 碳水 +${r1(n.carb)}g`;
+  }
+
+  /* =========================================================
+     【11. 動作】
+     ========================================================= */
+  function addLog() {
+    const food = foodById(foodSelect.value);
+    const amount = parseFloat(amountInput.value);
+    if (!food) return;
+    if (!amount || amount <= 0) {
+      amountInput.focus();
+      amountInput.classList.add('ring-2', 'ring-red-400');
+      setTimeout(() => amountInput.classList.remove('ring-2', 'ring-red-400'), 800);
+      return;
+    }
+    const n = calcNutrition(food, amount);
+    state.logs.push({
+      id: `${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      foodId: food.id, name: food.name, amount, unit: food.unit,
+      protein: n.protein, carb: n.carb, time: nowTime(),
+    });
+    saveState();
+    amountInput.value = ''; preview.textContent = '';
+    renderAll();
+  }
+  function deleteLog(id) {
+    state.logs = state.logs.filter(l => l.id !== id);
+    saveState(); renderAll();
+  }
+  function clearToday() {
+    if (state.logs.length === 0) return;
+    if (!confirm('確定要清空今日所有紀錄嗎？此動作無法復原。')) return;
+    state.logs = []; saveState(); renderAll();
+  }
+  function setMode(mode) { state.mode = mode; saveState(); renderAll(); }
+
+  function saveSettings() {
+    const f = readForm();
+    if (!f.weight || f.weight <= 0) {
+      el('setWeight').focus();
+      el('setWeight').classList.add('ring-2', 'ring-red-400');
+      setTimeout(() => el('setWeight').classList.remove('ring-2', 'ring-red-400'), 800);
+      return;
+    }
+    state.settings = f;
+    saveState();
+    renderAll();
+    setPanel(false);                        // 儲存後自動收合
+    // 小提示
+    const btn = el('saveSettings');
+    const old = btn.textContent;
+    btn.textContent = '✅ 已更新目標！';
+    setTimeout(() => { btn.textContent = old; }, 1400);
+  }
+
+  /* =========================================================
+     【12. 統一渲染 + 事件】
+     ========================================================= */
+  function renderAll() {
+    renderSummary();
+    renderModeButtons();
+    renderDashboard();
+    renderLogs();
+  }
+
+  el('addBtn').addEventListener('click', addLog);
+  el('clearBtn').addEventListener('click', clearToday);
+  el('btnTrain').addEventListener('click', () => setMode('train'));
+  el('btnRest').addEventListener('click', () => setMode('rest'));
+  el('saveSettings').addEventListener('click', saveSettings);
+  el('settingsToggle').addEventListener('click', () => setPanel(!panelOpen));
+  foodSelect.addEventListener('change', updateAmountLabel);
+  amountInput.addEventListener('input', updatePreview);
+  amountInput.addEventListener('keydown', e => { if (e.key === 'Enter') addLog(); });
+  // 設定面板內任何變動 → 即時更新試算預覽
+  ['setWeight', 'setStrategy', 'setFreq'].forEach(id =>
+    el(id).addEventListener('input', renderGoalPreview));
+
+  /* =========================================================
+     【13. 啟動】
+     ========================================================= */
+  fillSettingsForm();
+  updateAmountLabel();
+  renderAll();
+  </script>
+</body>
+</html>
