@@ -193,12 +193,17 @@
      unit:'pc' → 計件，營養為「每 1 件（顆/根）」含量
      ========================================================= */
   const FOOD_DB = [
+    // 秤重食材：unit:'g'，營養為「每 100g」含量
     { id: 'chicken', name: 'Costco益活雞胸肉', unit: 'g',  protein: 23.0, carb: 0.0 },
+    { id: 'beef',    name: '牛小排',            unit: 'g',  protein: 18.0, carb: 0.0 },
+    { id: 'shrimp',  name: '純生蝦仁',          unit: 'g',  protein: 21.0, carb: 0.0 },
     { id: 't65',     name: 'T65歐包 (麵粉重)', unit: 'g',  protein: 10.5, carb: 76.7 },
     { id: 'pasta',   name: '義大利麵 (乾重)',   unit: 'g',  protein: 12.5, carb: 75.0 },
-    { id: 'shrimp',  name: '純生蝦仁',          unit: 'g',  protein: 21.0, carb: 0.0 },
-    { id: 'egg',     name: '雞蛋',              unit: 'pc', protein: 6.5,  carb: 0.6, pieceName: '顆' },
-    { id: 'banana',  name: '香蕉',              unit: 'pc', protein: 1.0,  carb: 25.0, pieceName: '根' },
+    // 計件食材：unit:'pc'，營養為「每 1 件」含量
+    { id: 'egg',     name: '雞蛋',              unit: 'pc',    protein: 6.5,  carb: 0.6,  pieceName: '顆' },
+    { id: 'banana',  name: '香蕉',              unit: 'pc',    protein: 1.0,  carb: 25.0, pieceName: '根' },
+    // 計量匙食材：unit:'scoop'，營養為「每 1 湯匙(scoop)」含量
+    { id: 'whey',    name: 'ON金牌乳清蛋白 (摩卡卡布奇諾)', unit: 'scoop', protein: 24.0, carb: 3.0, pieceName: '湯匙' },
   ];
 
   /* 【增肌策略】熱量盈餘 → 直接反映在碳水倍率 */
@@ -425,11 +430,18 @@
     const food = foodById(foodSelect.value);
     if (!food) return;
     if (food.unit === 'pc') {
-      amountLabel.textContent = `輸入數量 (${food.pieceName})`;
+      // 雞蛋 / 香蕉
+      amountLabel.textContent = '輸入數量 (顆 / 根)';
       amountInput.setAttribute('inputmode', 'numeric');
       amountInput.placeholder = `例如 1 ${food.pieceName}`;
+    } else if (food.unit === 'scoop') {
+      // 乳清蛋白
+      amountLabel.textContent = '輸入份量 (湯匙 / scoop)';
+      amountInput.setAttribute('inputmode', 'decimal');
+      amountInput.placeholder = '例如 1 湯匙';
     } else {
-      amountLabel.textContent = '實際秤重 (g)';
+      // 秤重食材
+      amountLabel.textContent = '實際秤重重量 (g)';
       amountInput.setAttribute('inputmode', 'decimal');
       amountInput.placeholder = '例如 150';
     }
