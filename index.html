@@ -12,6 +12,12 @@
     input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     input[type=number] { -moz-appearance: textfield; }
     body { -webkit-tap-highlight-color: transparent; }
+    /* 進度條「補吃」區段：琥珀色斜紋，與今日目標的灰底明顯區分 */
+    .makeup-zone {
+      background-image: repeating-linear-gradient(45deg,
+        rgba(245,158,11,.40) 0, rgba(245,158,11,.40) 5px,
+        rgba(245,158,11,.14) 5px, rgba(245,158,11,.14) 10px);
+    }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-800 antialiased">
@@ -104,17 +110,22 @@
         <!-- 蛋白質 -->
         <div>
           <div class="flex items-end justify-between mb-2">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
               <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
               <span class="font-semibold text-slate-700">蛋白質</span>
+              <span id="proMakeup" class="hidden text-[11px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                ＋補吃 <span id="proMakeupVal">0</span>g
+              </span>
             </div>
             <div class="text-right leading-none">
               <span id="proVal" class="text-2xl font-bold text-slate-900">0</span>
               <span class="text-slate-400 text-sm">/ <span id="proGoal">0</span> g</span>
             </div>
           </div>
-          <div class="h-4 w-full bg-slate-100 rounded-full overflow-hidden">
-            <div id="proBar" class="bar-fill h-full rounded-full bg-blue-500" style="width:0%"></div>
+          <div class="relative h-4 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div id="proZone" class="makeup-zone absolute inset-y-0 hidden" style="left:100%;width:0%"></div>
+            <div id="proBar" class="bar-fill absolute inset-y-0 left-0 rounded-full bg-blue-500" style="width:0%"></div>
+            <div id="proDivider" class="absolute inset-y-0 w-0.5 bg-slate-500/70 hidden" style="left:100%"></div>
           </div>
           <p id="proRemain" class="text-xs mt-1.5 text-slate-500 font-medium">—</p>
         </div>
@@ -122,19 +133,35 @@
         <!-- 碳水 -->
         <div>
           <div class="flex items-end justify-between mb-2">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
               <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
               <span class="font-semibold text-slate-700">碳水（澱粉）</span>
+              <span id="carbMakeup" class="hidden text-[11px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                ＋補吃 <span id="carbMakeupVal">0</span>g
+              </span>
             </div>
             <div class="text-right leading-none">
               <span id="carbVal" class="text-2xl font-bold text-slate-900">0</span>
               <span class="text-slate-400 text-sm">/ <span id="carbGoal">0</span> g</span>
             </div>
           </div>
-          <div class="h-4 w-full bg-slate-100 rounded-full overflow-hidden">
-            <div id="carbBar" class="bar-fill h-full rounded-full bg-amber-500" style="width:0%"></div>
+          <div class="relative h-4 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div id="carbZone" class="makeup-zone absolute inset-y-0 hidden" style="left:100%;width:0%"></div>
+            <div id="carbBar" class="bar-fill absolute inset-y-0 left-0 rounded-full bg-amber-500" style="width:0%"></div>
+            <div id="carbDivider" class="absolute inset-y-0 w-0.5 bg-slate-500/70 hidden" style="left:100%"></div>
           </div>
           <p id="carbRemain" class="text-xs mt-1.5 text-slate-500 font-medium">—</p>
+        </div>
+
+        <!-- 補吃圖例 + 清除按鈕（有補吃時才顯示） -->
+        <div id="makeupLegend" class="hidden items-center gap-2 text-[11px] text-slate-400 pt-2 border-t border-slate-100">
+          <span class="makeup-zone inline-block w-6 h-3 rounded-sm border border-amber-200 shrink-0"></span>
+          <span class="flex-1">斜紋區為「昨日缺口」補吃額度（不累積）</span>
+          <button id="clearMakeup"
+            class="shrink-0 text-[11px] font-semibold text-red-400 hover:text-red-600
+                   px-2 py-1 rounded-lg hover:bg-red-50 active:scale-95 transition whitespace-nowrap">
+            ✕ 清除補吃
+          </button>
         </div>
       </section>
 
@@ -154,7 +181,7 @@
 
         <div>
           <label id="amountLabel" class="block text-xs font-semibold text-slate-500 mb-1.5">實際秤重 (g)</label>
-          <input id="amountInput" type="number" inputmode="decimal" min="0" step="any" placeholder="0"
+          <input id="amountInput" type="number" inputmode="decimal" step="any" placeholder="0"
             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-base font-medium
                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
           <p id="preview" class="text-xs text-slate-400 mt-1.5 h-4"></p>
@@ -193,17 +220,17 @@
      unit:'pc' → 計件，營養為「每 1 件（顆/根）」含量
      ========================================================= */
   const FOOD_DB = [
-    // 秤重食材：unit:'g'，營養為「每 100g」含量
-    { id: 'chicken', name: 'Costco益活雞胸肉', unit: 'g',  protein: 23.0, carb: 0.0 },
-    { id: 'beef',    name: '牛小排',            unit: 'g',  protein: 18.0, carb: 0.0 },
-    { id: 'shrimp',  name: '純生蝦仁',          unit: 'g',  protein: 21.0, carb: 0.0 },
-    { id: 't65',     name: 'T65歐包 (麵粉重)', unit: 'g',  protein: 10.5, carb: 76.7 },
-    { id: 'pasta',   name: '義大利麵 (乾重)',   unit: 'g',  protein: 12.5, carb: 75.0 },
+    // 秤重食材：unit:'g'，營養為「每 100g」含量；defaultAmount=快速預設值（空白送出時套用）
+    { id: 'chicken', name: 'Costco益活雞胸肉', unit: 'g',    protein: 23.0, carb: 0.0  },
+    { id: 'beef',    name: '牛小排',            unit: 'g',    protein: 18.0, carb: 0.0  },
+    { id: 'shrimp',  name: '純生蝦仁',          unit: 'g',    protein: 21.0, carb: 0.0  },
+    { id: 't65',     name: 'T65歐包 (麵粉重)', unit: 'g',    protein: 10.5, carb: 76.7, defaultAmount: 300 },
+    { id: 'pasta',   name: '義大利麵 (乾重)',   unit: 'g',    protein: 12.5, carb: 75.0 },
     // 計件食材：unit:'pc'，營養為「每 1 件」含量
-    { id: 'egg',     name: '雞蛋',              unit: 'pc',    protein: 6.5,  carb: 0.6,  pieceName: '顆' },
-    { id: 'banana',  name: '香蕉',              unit: 'pc',    protein: 1.0,  carb: 25.0, pieceName: '根' },
+    { id: 'egg',     name: '雞蛋',              unit: 'pc',   protein: 6.5,  carb: 0.6,  pieceName: '顆', defaultAmount: 2 },
+    { id: 'banana',  name: '香蕉',              unit: 'pc',   protein: 1.0,  carb: 25.0, pieceName: '根', defaultAmount: 1 },
     // 計量匙食材：unit:'scoop'，營養為「每 1 湯匙(scoop)」含量
-    { id: 'whey',    name: 'ON金牌乳清蛋白 (摩卡卡布奇諾)', unit: 'scoop', protein: 24.0, carb: 3.0, pieceName: '湯匙' },
+    { id: 'whey',    name: 'ON金牌乳清蛋白 (摩卡卡布奇諾)', unit: 'scoop', protein: 24.0, carb: 3.0, pieceName: '湯匙', defaultAmount: 1 },
   ];
 
   /* 【增肌策略】熱量盈餘 → 直接反映在碳水倍率 */
@@ -230,10 +257,12 @@
      ========================================================= */
   const r1     = n => Math.round(n * 10) / 10;   // 小數一位
   const round5 = n => Math.round(n / 5) * 5;     // 目標取整到 5 的倍數（漂亮的整數目標）
-  const todayStr = () => {
-    const d = new Date(), p = x => String(x).padStart(2, '0');
+  const dateStrOf = d => {
+    const p = x => String(x).padStart(2, '0');
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   };
+  const todayStr = () => dateStrOf(new Date());
+  const yesterdayStr = () => { const d = new Date(); d.setDate(d.getDate() - 1); return dateStrOf(d); };
   const nowTime = () => {
     const d = new Date(), p = x => String(x).padStart(2, '0');
     return `${p(d.getHours())}:${p(d.getMinutes())}`;
@@ -271,13 +300,24 @@
   function defaultState() {
     return { date: todayStr(), mode: 'train', settings: { ...DEFAULT_SETTINGS }, logs: [] };
   }
+  // 結算「昨日」缺口：只在昨天有紀錄且未達標時才產生提示，避免沒記帳的日子也被嘮叨
+  function buildCarryover(s) {
+    if (!s.logs || s.logs.length === 0) return null;
+    const goal = computeGoals(s.settings)[s.mode] || computeGoals(s.settings).train;
+    const tot = s.logs.reduce((a, l) => { a.p += l.protein; a.c += l.carb; return a; }, { p: 0, c: 0 });
+    const proGap = Math.max(0, r1(goal.protein - tot.p));
+    const carbGap = Math.max(0, r1(goal.carb - tot.c));
+    if (proGap <= 0 && carbGap <= 0) return null;   // 昨日已達標，不提示
+    return { date: s.date, modeLabel: goal.label, proGap, carbGap };
+  }
   function loadState() {
     try {
       const raw = localStorage.getItem(LS_KEY);
       if (!raw) return defaultState();
       const s = JSON.parse(raw);
       s.settings = { ...DEFAULT_SETTINGS, ...(s.settings || {}) };
-      if (s.date !== todayStr()) {           // 跨日：清空今日紀錄，保留設定與模式
+      if (s.date !== todayStr()) {           // 跨日：結算昨日缺口 → 清空今日紀錄（保留設定與模式）
+        s.carryover = buildCarryover(s);     // 記錄昨日未達標缺口（防呆，不干涉今日目標）
         s.date = todayStr();
         s.logs = [];
       }
@@ -314,27 +354,77 @@
     const goals = computeGoals(state.settings);
     const goal = goals[state.mode];
     const t = getTotals();
+    // 補吃只在「缺口的隔天」顯示：跳過一天沒開 App，舊缺口就不再出現（不累積到後天）
+    const co = (state.carryover && state.carryover.date === yesterdayStr()) ? state.carryover : {};
+    const proMakeup = Math.max(0, co.proGap || 0);
+    const carbMakeup = Math.max(0, co.carbGap || 0);
     el('todayLabel').textContent = `${state.date} ・ ${goal.label}`;
-    renderBar('pro', t.protein, goal.protein, 'blue');
-    renderBar('carb', t.carb, goal.carb, 'amber');
+    renderBar('pro', t.protein, goal.protein, proMakeup, 'blue');
+    renderBar('carb', t.carb, goal.carb, carbMakeup, 'amber');
+    // 補吃圖例：任一項有補吃才顯示（用 flex/hidden 切換）
+    const legend = el('makeupLegend');
+    const hasMakeup = proMakeup > 0 || carbMakeup > 0;
+    legend.classList.toggle('hidden', !hasMakeup);
+    legend.classList.toggle('flex', hasMakeup);
   }
-  function renderBar(prefix, value, goal, color) {
-    const pct = goal > 0 ? Math.min((value / goal) * 100, 100) : 0;
-    const bar = el(prefix + 'Bar');
-    const reached = goal > 0 && value >= goal;
+  // value=今日已攝取, goal=今日基礎目標, makeup=昨日缺口補吃額度
+  function renderBar(prefix, value, goal, makeup, color) {
+    const total = goal + makeup;                          // 進度條總長 = 今日目標 + 補吃
+    const fillPct = total > 0 ? Math.min((value / total) * 100, 100) : 0;
+    const goalPct = total > 0 ? (goal / total) * 100 : 100;
+    const reachedToday = goal > 0 && value >= goal;
+    const reachedAll = total > 0 && value >= total;
+
     el(prefix + 'Val').textContent = r1(value);
     el(prefix + 'Goal').textContent = goal;
-    bar.style.width = pct + '%';
-    const colorClass = reached ? 'bg-green-500' : (color === 'blue' ? 'bg-blue-500' : 'bg-amber-500');
-    bar.className = 'bar-fill h-full rounded-full ' + colorClass;
-    const remainEl = el(prefix + 'Remain');
-    if (reached) {
-      const over = r1(value - goal);
-      remainEl.textContent = over > 0 ? `✅ 已達標（超出 ${over} g）` : '✅ 已達標';
-      remainEl.className = 'text-xs mt-1.5 text-green-600 font-bold';
+
+    // 補吃徽章
+    const badge = el(prefix + 'Makeup');
+    if (makeup > 0) { badge.classList.remove('hidden'); el(prefix + 'MakeupVal').textContent = r1(makeup); }
+    else badge.classList.add('hidden');
+
+    // 補吃斜紋區段 + 分隔線（落在「今日目標」與「補吃」交界）
+    const zone = el(prefix + 'Zone');
+    const divider = el(prefix + 'Divider');
+    if (makeup > 0) {
+      zone.style.left = goalPct + '%';
+      zone.style.width = (100 - goalPct) + '%';
+      zone.classList.remove('hidden');
+      divider.style.left = goalPct + '%';
+      divider.classList.remove('hidden');
     } else {
-      remainEl.textContent = `還差 ${r1(goal - value)} g`;
-      remainEl.className = 'text-xs mt-1.5 text-slate-500 font-medium';
+      zone.classList.add('hidden');
+      divider.classList.add('hidden');
+    }
+
+    // 填充：全部達標(含補吃)轉綠，否則用主題色
+    const bar = el(prefix + 'Bar');
+    bar.style.width = fillPct + '%';
+    const baseColor = color === 'blue' ? 'bg-blue-500' : 'bg-amber-500';
+    bar.className = 'bar-fill absolute inset-y-0 left-0 rounded-full ' + (reachedAll ? 'bg-green-500' : baseColor);
+
+    // 剩餘文字
+    const remainEl = el(prefix + 'Remain');
+    if (makeup <= 0) {
+      if (reachedToday) {
+        const over = r1(value - goal);
+        remainEl.textContent = over > 0 ? `✅ 已達標（超出 ${over} g）` : '✅ 已達標';
+        remainEl.className = 'text-xs mt-1.5 text-green-600 font-bold';
+      } else {
+        remainEl.textContent = `還差 ${r1(goal - value)} g`;
+        remainEl.className = 'text-xs mt-1.5 text-slate-500 font-medium';
+      }
+    } else {
+      if (reachedAll) {
+        remainEl.textContent = '✅ 今日目標 + 補吃全部達成！';
+        remainEl.className = 'text-xs mt-1.5 text-green-600 font-bold';
+      } else if (reachedToday) {
+        remainEl.innerHTML = `✅ 今日達標！<span class="text-amber-600">補吃還差 ${r1(total - value)} g</span>`;
+        remainEl.className = 'text-xs mt-1.5 font-semibold';
+      } else {
+        remainEl.innerHTML = `今日還差 ${r1(goal - value)} g <span class="text-amber-600">（含補吃共 ${r1(total - value)} g）</span>`;
+        remainEl.className = 'text-xs mt-1.5 text-slate-500 font-medium';
+      }
     }
   }
 
@@ -429,30 +519,36 @@
   function updateAmountLabel() {
     const food = foodById(foodSelect.value);
     if (!food) return;
+    // 組合 placeholder：有 defaultAmount 就顯示「直接送出 = Xg/顆/根」，沒有就顯示一般提示
+    const buildPlaceholder = (hint) => {
+      if (food.defaultAmount != null) {
+        return `${food.defaultAmount}${hint}`;
+      }
+      return `例如 ${hint}`;
+    };
     if (food.unit === 'pc') {
-      // 雞蛋 / 香蕉
       amountLabel.textContent = '輸入數量 (顆 / 根)';
       amountInput.setAttribute('inputmode', 'numeric');
-      amountInput.placeholder = `例如 1 ${food.pieceName}`;
+      amountInput.placeholder = buildPlaceholder(food.pieceName);
     } else if (food.unit === 'scoop') {
-      // 乳清蛋白
       amountLabel.textContent = '輸入份量 (湯匙 / scoop)';
       amountInput.setAttribute('inputmode', 'decimal');
-      amountInput.placeholder = '例如 1 湯匙';
+      amountInput.placeholder = buildPlaceholder('湯匙');
     } else {
-      // 秤重食材
       amountLabel.textContent = '實際秤重重量 (g)';
       amountInput.setAttribute('inputmode', 'decimal');
-      amountInput.placeholder = '例如 150';
+      amountInput.placeholder = buildPlaceholder('g');
     }
     updatePreview();
   }
   function updatePreview() {
     const food = foodById(foodSelect.value);
-    const amount = parseFloat(amountInput.value);
-    if (!food || !amount || amount <= 0) { preview.textContent = ''; return; }
+    const raw = parseFloat(amountInput.value);
+    const amount = Math.abs(raw);               // 容錯：負數（倒扣法）自動取絕對值
+    if (!food || !amount || isNaN(amount)) { preview.textContent = ''; return; }
     const n = calcNutrition(food, amount);
-    preview.textContent = `↳ 蛋白質 +${r1(n.protein)}g ・ 碳水 +${r1(n.carb)}g`;
+    const hint = raw < 0 ? '（倒扣 ' + r1(amount) + '）' : '';
+    preview.textContent = `↳${hint} 蛋白質 +${r1(n.protein)}g ・ 碳水 +${r1(n.carb)}g`;
   }
 
   /* =========================================================
@@ -460,9 +556,13 @@
      ========================================================= */
   function addLog() {
     const food = foodById(foodSelect.value);
-    const amount = parseFloat(amountInput.value);
     if (!food) return;
-    if (!amount || amount <= 0) {
+    const raw = parseFloat(amountInput.value);
+    // 空白 → 用 defaultAmount；沒有 defaultAmount 才報錯
+    const amount = (!amountInput.value.trim() && food.defaultAmount != null)
+      ? food.defaultAmount
+      : Math.abs(raw);   // 容錯：負數（倒扣法）自動取絕對值
+    if (!amount || isNaN(amount)) {
       amountInput.focus();
       amountInput.classList.add('ring-2', 'ring-red-400');
       setTimeout(() => amountInput.classList.remove('ring-2', 'ring-red-400'), 800);
@@ -524,6 +624,12 @@
   el('btnRest').addEventListener('click', () => setMode('rest'));
   el('saveSettings').addEventListener('click', saveSettings);
   el('settingsToggle').addEventListener('click', () => setPanel(!panelOpen));
+  el('clearMakeup').addEventListener('click', () => {
+    if (!confirm('確定清除補吃額度？昨日缺口將不再顯示。')) return;
+    state.carryover = null;
+    saveState();
+    renderAll();
+  });
   foodSelect.addEventListener('change', updateAmountLabel);
   amountInput.addEventListener('input', updatePreview);
   amountInput.addEventListener('keydown', e => { if (e.key === 'Enter') addLog(); });
