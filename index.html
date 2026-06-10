@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#020617" />
   <title>動態增肌營養計算器</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
   <style>
     .bar-fill { transition: width .4s cubic-bezier(.22,.61,.36,1), background-color .3s ease; }
     input[type=number]::-webkit-outer-spin-button,
@@ -17,6 +18,13 @@
         rgba(245,158,11,.45) 0, rgba(245,158,11,.45) 5px,
         rgba(245,158,11,.15) 5px, rgba(245,158,11,.15) 10px);
     }
+    /* 拖曳相關 */
+    .drag-handle { touch-action: none; cursor: grab; }
+    .drag-handle:active { cursor: grabbing; }
+    .sortable-ghost { opacity: .35; outline: 2px dashed #475569; border-radius: .75rem; }
+    /* 分隔條回收區：拖分隔條靠近時亮起 */
+    .bank-drop-active { border-color: rgb(251 191 36) !important; background-color: rgba(251,191,36,.07) !important; }
+    .bank-drop-active span { color: rgb(251 191 36) !important; }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 antialiased">
@@ -207,7 +215,22 @@
             🗑️ 清空重來
           </button>
         </div>
-        <ul id="logList" class="space-y-2"></ul>
+
+        <!-- 分隔條來源（clone 模式，拖入清單；清單的分隔條拖回此處即刪除） -->
+        <div class="flex items-center gap-3 mb-3 pb-3 border-b border-slate-700/60">
+          <div id="dividerBank">
+            <div data-log-id="__bank__" data-log-type="divider"
+                 class="flex items-center gap-2 border border-dashed border-slate-500 rounded-lg
+                        px-3 py-2 cursor-grab select-none transition-all duration-150
+                        text-slate-400 text-xs hover:border-slate-400 hover:text-slate-300 w-fit">
+              <span class="text-sm leading-none">⠿</span>
+              <span>── 分隔條 ──</span>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-600 leading-snug">拖入清單分組<br>拖回此處刪除</p>
+        </div>
+
+        <ul id="logList" class="space-y-2 min-h-[2rem]"></ul>
         <p id="emptyHint" class="text-center text-sm text-slate-500 py-8">今天還沒有紀錄，開吃吧！🍗</p>
       </section>
 
@@ -349,8 +372,11 @@
      【6. 渲染：Dashboard】
      ========================================================= */
   function getTotals() {
-    return state.logs.reduce((a, l) => { a.protein += l.protein; a.carb += l.carb; return a; },
-      { protein: 0, carb: 0 });
+    return state.logs.reduce((a, l) => {
+      if (l.type === 'divider') return a;          // 分隔條不計入營養
+      a.protein += l.protein; a.carb += l.carb;
+      return a;
+    }, { protein: 0, carb: 0 });
   }
   function renderDashboard() {
     const goals = computeGoals(state.settings);
@@ -424,39 +450,139 @@
   }
 
   /* =========================================================
-     【7. 渲染：今日明細】
+     【7. 渲染：今日明細（含分隔條與拖曳把手）】
      ========================================================= */
+  let _sortableList = null;
+  let _sortableBank = null;
+
   function renderLogs() {
     const list = el('logList');
     list.innerHTML = '';
     const hint = el('emptyHint');
-    if (state.logs.length === 0) { hint.style.display = 'block'; return; }
-    hint.style.display = 'none';
+    hint.style.display = state.logs.length === 0 ? 'block' : 'none';
 
-    [...state.logs].reverse().forEach(log => {
-      const food = foodById(log.foodId);
-      const unitTxt = log.unit === 'g' ? `${r1(log.amount)} g` : `${r1(log.amount)} ${food?.pieceName || '件'}`;
+    // 按照 state.logs 順序渲染（不反轉，拖曳排序靠 Sortable 維護）
+    state.logs.forEach(log => {
       const li = document.createElement('li');
-      li.className = 'flex items-center justify-between gap-3 bg-slate-700/60 rounded-xl px-3.5 py-3 border border-slate-700';
-      li.innerHTML = `
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-2">
-            <span class="font-semibold text-slate-100 truncate">${log.name}</span>
-            <span class="text-[11px] text-slate-500 shrink-0">${log.time}</span>
+
+      if (log.type === 'divider') {
+        // ── 分隔條 ──
+        li.dataset.logId = log.id;
+        li.dataset.logType = 'divider';
+        li.className = 'flex items-center gap-2 py-1.5 select-none';
+        li.innerHTML = `
+          <span class="drag-handle text-slate-600 hover:text-slate-400 px-1 text-base leading-none">⠿</span>
+          <div class="flex-1 border-t-2 border-dashed border-slate-600/70 rounded"></div>`;
+      } else {
+        // ── 食材紀錄 ──
+        const food = foodById(log.foodId);
+        const unitTxt = log.unit === 'g'
+          ? `${r1(log.amount)} g`
+          : `${r1(log.amount)} ${food?.pieceName || '件'}`;
+        li.dataset.logId = log.id;
+        li.dataset.logType = 'food';
+        li.className = 'flex items-center gap-2 bg-slate-700/60 rounded-xl pl-1.5 pr-3.5 py-3 border border-slate-700';
+        li.innerHTML = `
+          <span class="drag-handle text-slate-600 hover:text-slate-400 px-1 text-base leading-none shrink-0">⠿</span>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <span class="font-semibold text-slate-100 truncate">${log.name}</span>
+              <span class="text-[11px] text-slate-500 shrink-0">${log.time}</span>
+            </div>
+            <div class="text-xs text-slate-400 mt-0.5">
+              ${unitTxt}
+              ・ <span class="text-blue-400 font-medium">蛋 ${r1(log.protein)}g</span>
+              ・ <span class="text-amber-400 font-medium">碳 ${r1(log.carb)}g</span>
+            </div>
           </div>
-          <div class="text-xs text-slate-400 mt-0.5">
-            ${unitTxt}
-            ・ <span class="text-blue-400 font-medium">蛋 ${r1(log.protein)}g</span>
-            ・ <span class="text-amber-400 font-medium">碳 ${r1(log.carb)}g</span>
-          </div>
-        </div>
-        <button data-del="${log.id}"
-          class="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-slate-500
-                 hover:text-red-400 hover:bg-red-900/30 active:scale-90 transition text-lg">✕</button>`;
+          <button data-del="${log.id}"
+            class="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-slate-500
+                   hover:text-red-400 hover:bg-red-900/30 active:scale-90 transition text-lg">✕</button>`;
+      }
       list.appendChild(li);
     });
+
     list.querySelectorAll('[data-del]').forEach(btn =>
       btn.addEventListener('click', () => deleteLog(btn.dataset.del)));
+
+    initSortable();
+  }
+
+  function initSortable() {
+    // 銷毀舊實例（DOM 重建後必須重新初始化）
+    if (_sortableList) { try { _sortableList.destroy(); } catch(e){} _sortableList = null; }
+    if (_sortableBank) { try { _sortableBank.destroy(); } catch(e){} _sortableBank = null; }
+
+    const listEl  = el('logList');
+    const bankEl  = el('dividerBank');
+    if (!listEl || !bankEl || typeof Sortable === 'undefined') return;
+
+    // ── 清單 Sortable ──
+    _sortableList = Sortable.create(listEl, {
+      group:      { name: 'list', pull: true, put: ['bank'] },
+      handle:     '.drag-handle',
+      animation:  160,
+      delay:      80,           // 手機上避免誤觸：稍微長按才啟動
+      delayOnTouchOnly: true,
+
+      onStart() {
+        bankEl.firstElementChild.classList.add('bank-drop-active');
+      },
+
+      onMove(evt) {
+        // 分隔條可以去任何地方
+        if (evt.dragged.dataset.logType === 'divider') return true;
+        // 食材不能穿越分隔條（related 是分隔條時擋住）
+        if (evt.related?.dataset.logType === 'divider') return false;
+        return true;
+      },
+
+      onEnd(evt) {
+        bankEl.firstElementChild.classList.remove('bank-drop-active');
+        if (evt.from !== evt.to) return; // 跨清單由 bank onAdd 處理
+        // 讀取新 DOM 順序 → 更新 state
+        const newLogs = [...listEl.querySelectorAll('[data-log-id]')].map(el => {
+          const id = el.dataset.logId;
+          return state.logs.find(l => l.id === id)
+              || { type: 'divider', id };
+        }).filter(Boolean);
+        state.logs = newLogs;
+        saveState();
+        setTimeout(() => renderLogs(), 0);
+      },
+
+      onAdd(evt) {
+        // 從 bank 拖進來的新分隔條
+        const idx = evt.newIndex;
+        evt.item.remove();                           // 移除 Sortable 插入的 clone DOM
+        state.logs.splice(idx, 0, { type: 'divider', id: `div_${Date.now()}` });
+        saveState();
+        setTimeout(() => renderLogs(), 0);
+      },
+    });
+
+    // ── 分隔條來源 Sortable（clone 模式） ──
+    _sortableBank = Sortable.create(bankEl, {
+      group:     { name: 'bank', pull: 'clone', put: ['list'] },
+      sort:      false,
+      animation: 100,
+
+      onMove(evt) {
+        // 只有分隔條可以拖回 bank（食材不行）
+        return evt.dragged.dataset.logType === 'divider';
+      },
+
+      onAdd(evt) {
+        // 清單裡的分隔條被拖回 bank → 刪除
+        const divId = evt.item.dataset.logId;
+        evt.item.remove();
+        if (divId && divId !== '__bank__') {
+          state.logs = state.logs.filter(l => l.id !== divId);
+          saveState();
+          setTimeout(() => renderLogs(), 0);
+        }
+      },
+    });
   }
 
   /* =========================================================
@@ -561,6 +687,7 @@
     const n = calcNutrition(food, amount);
     state.logs.push({
       id: `${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      type: 'food',
       foodId: food.id, name: food.name, amount, unit: food.unit,
       protein: n.protein, carb: n.carb, time: nowTime(),
     });
