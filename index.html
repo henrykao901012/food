@@ -685,7 +685,7 @@
       return;
     }
     const n = calcNutrition(food, amount);
-    state.logs.push({
+    state.logs.unshift({
       id: `${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       type: 'food',
       foodId: food.id, name: food.name, amount, unit: food.unit,
