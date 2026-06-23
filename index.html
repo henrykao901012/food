@@ -41,17 +41,6 @@
         <span class="text-2xl">💪</span>
       </div>
 
-      <!-- 模式切換 -->
-      <div class="grid grid-cols-2 gap-2 p-1 bg-slate-800 rounded-xl">
-        <button id="btnTrain" data-mode="train"
-          class="mode-btn py-3 rounded-lg font-semibold text-sm transition-all active:scale-95">
-          🏋️ 訓練日
-        </button>
-        <button id="btnRest" data-mode="rest"
-          class="mode-btn py-3 rounded-lg font-semibold text-sm transition-all active:scale-95">
-          🛋️ 休息日
-        </button>
-      </div>
     </header>
 
     <main class="flex-1 px-4 py-4 space-y-4 pb-24">
@@ -90,17 +79,6 @@
                 <option value="aggressive">激進增肌 (熱量盈餘 20%)</option>
               </select>
             </div>
-            <!-- 重訓頻率 -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-400 mb-1.5">每週重訓頻率</label>
-              <select id="setFreq"
-                class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-base font-medium
-                       text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none">
-                <option value="3">一週 3 練 (中強度)</option>
-                <option value="5">一週 5 練 (高強度)</option>
-              </select>
-            </div>
-
             <!-- 試算預覽 -->
             <div id="goalPreview" class="bg-slate-700/60 rounded-xl p-3.5 text-xs text-slate-400 leading-relaxed border border-slate-600/50"></div>
 
@@ -269,16 +247,7 @@
     aggressive: { label: '激進增肌', mult: 1.20 },
   };
 
-  /* 【重訓頻率】決定每公斤碳水基數 (g/kg) */
-  const FREQ = {
-    '3': { label: '3練', carbPerKg: 4.0 },
-    '5': { label: '5練', carbPerKg: 4.8 },
-  };
-
-  /* 休息日碳水 = 訓練日碳水 − 此值 */
-  const REST_DAY_CARB_CUT = 100;
-
-  const DEFAULT_SETTINGS = { weight: 68, strategy: 'clean', freq: '5' };
+  const DEFAULT_SETTINGS = { weight: 68, strategy: 'clean' };
   const LS_KEY = 'muscleNutritionApp.v2';
 
   /* =========================================================
@@ -305,19 +274,14 @@
 
   /* =========================================================
      【3. 核心：依生理資訊動態計算每日目標】
-       蛋白質 = 體重 × 2.2（不分訓練/休息日）
-       碳水(訓練日) = 體重 × 每公斤基數(頻率) × 策略倍率
-       碳水(休息日) = 碳水(訓練日) − 100
+       蛋白質 = 體重 × 2.2
+       碳水   = 體重 × 5.5 × 策略倍率（無訓練/休息日之分）
      ========================================================= */
   function computeGoals(s) {
     const w = Number(s.weight) || 0;
     const protein = Math.round(w * 2.2);
-    const carbTrain = round5(w * (FREQ[s.freq]?.carbPerKg || 0) * (STRATEGY[s.strategy]?.mult || 1));
-    const carbRest = Math.max(0, carbTrain - REST_DAY_CARB_CUT);
-    return {
-      train: { protein, carb: carbTrain, label: '訓練日 🏋️' },
-      rest:  { protein, carb: carbRest,  label: '休息日 🛋️' },
-    };
+    const carb = round5(w * 5.5 * (STRATEGY[s.strategy]?.mult || 1));
+    return { protein, carb };
   }
 
   /* =========================================================
@@ -327,16 +291,16 @@
   let state = loadState();
 
   function defaultState() {
-    return { date: todayStr(), mode: 'train', settings: { ...DEFAULT_SETTINGS }, logs: [] };
+    return { date: todayStr(), settings: { ...DEFAULT_SETTINGS }, logs: [] };
   }
   function buildCarryover(s) {
     if (!s.logs || s.logs.length === 0) return null;
-    const goal = computeGoals(s.settings)[s.mode] || computeGoals(s.settings).train;
+    const goal = computeGoals(s.settings);
     const tot = s.logs.reduce((a, l) => { a.p += l.protein; a.c += l.carb; return a; }, { p: 0, c: 0 });
     const proGap = Math.max(0, r1(goal.protein - tot.p));
     const carbGap = Math.max(0, r1(goal.carb - tot.c));
     if (proGap <= 0 && carbGap <= 0) return null;
-    return { date: s.date, modeLabel: goal.label, proGap, carbGap };
+    return { date: s.date, proGap, carbGap };
   }
   function loadState() {
     try {
@@ -382,13 +346,12 @@
     }, { protein: 0, carb: 0 });
   }
   function renderDashboard() {
-    const goals = computeGoals(state.settings);
-    const goal = goals[state.mode];
+    const goal = computeGoals(state.settings);
     const t = getTotals();
     const co = (state.carryover && state.carryover.date === yesterdayStr()) ? state.carryover : {};
     const proMakeup = Math.max(0, co.proGap || 0);
     const carbMakeup = Math.max(0, co.carbGap || 0);
-    el('todayLabel').textContent = `${state.date} ・ ${goal.label}`;
+    el('todayLabel').textContent = state.date;
     renderBar('pro', t.protein, goal.protein, proMakeup, 'blue');
     renderBar('carb', t.carb, goal.carb, carbMakeup, 'amber');
     const legend = el('makeupLegend');
@@ -589,19 +552,11 @@
   }
 
   /* =========================================================
-     【8. 渲染：模式按鈕 / 設定摘要】
+     【8. 渲染：設定摘要】
      ========================================================= */
-  function renderModeButtons() {
-    document.querySelectorAll('.mode-btn').forEach(btn => {
-      const active = btn.dataset.mode === state.mode;
-      btn.className = 'mode-btn py-3 rounded-lg font-semibold text-sm transition-all active:scale-95 ' +
-        (active ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400');
-    });
-  }
   function renderSummary() {
     const s = state.settings;
-    el('summaryText').textContent =
-      `${s.weight}kg ・ ${STRATEGY[s.strategy].label} ・ ${FREQ[s.freq].label}`;
+    el('summaryText').textContent = `${s.weight}kg ・ ${STRATEGY[s.strategy].label}`;
   }
 
   /* =========================================================
@@ -610,23 +565,20 @@
   function fillSettingsForm() {
     el('setWeight').value = state.settings.weight;
     el('setStrategy').value = state.settings.strategy;
-    el('setFreq').value = state.settings.freq;
     renderGoalPreview();
   }
   function readForm() {
     return {
       weight: parseFloat(el('setWeight').value) || 0,
       strategy: el('setStrategy').value,
-      freq: el('setFreq').value,
     };
   }
   function renderGoalPreview() {
     const g = computeGoals(readForm());
     el('goalPreview').innerHTML =
       `📊 試算結果（按下儲存後套用）<br>
-       蛋白質：<b class="text-blue-400">${g.train.protein} g</b>（訓練/休息日相同）<br>
-       碳水・訓練日：<b class="text-amber-400">${g.train.carb} g</b>
-       ・休息日：<b class="text-amber-400">${g.rest.carb} g</b>`;
+       蛋白質：<b class="text-blue-400">${g.protein} g</b><br>
+       碳水：<b class="text-amber-400">${g.carb} g</b>`;
   }
 
   let panelOpen = false;
@@ -707,8 +659,6 @@
     if (!confirm('確定要清空今日所有紀錄嗎？此動作無法復原。')) return;
     state.logs = []; saveState(); renderAll();
   }
-  function setMode(mode) { state.mode = mode; saveState(); renderAll(); }
-
   function saveSettings() {
     const f = readForm();
     if (!f.weight || f.weight <= 0) {
@@ -732,15 +682,12 @@
      ========================================================= */
   function renderAll() {
     renderSummary();
-    renderModeButtons();
     renderDashboard();
     renderLogs();
   }
 
   el('addBtn').addEventListener('click', addLog);
   el('clearBtn').addEventListener('click', clearToday);
-  el('btnTrain').addEventListener('click', () => setMode('train'));
-  el('btnRest').addEventListener('click', () => setMode('rest'));
   el('saveSettings').addEventListener('click', saveSettings);
   el('settingsToggle').addEventListener('click', () => setPanel(!panelOpen));
   el('clearMakeup').addEventListener('click', () => {
@@ -752,7 +699,7 @@
   foodSelect.addEventListener('change', updateAmountLabel);
   amountInput.addEventListener('input', updatePreview);
   amountInput.addEventListener('keydown', e => { if (e.key === 'Enter') addLog(); });
-  ['setWeight', 'setStrategy', 'setFreq'].forEach(id => {
+  ['setWeight', 'setStrategy'].forEach(id => {
     el(id).addEventListener('input', renderGoalPreview);
     el(id).addEventListener('change', renderGoalPreview);
   });
