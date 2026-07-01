@@ -260,8 +260,9 @@
     const p = x => String(x).padStart(2, '0');
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   };
-  const todayStr = () => dateStrOf(new Date());
-  const yesterdayStr = () => { const d = new Date(); d.setDate(d.getDate() - 1); return dateStrOf(d); };
+  // 凌晨 5 點前仍視為前一天（日記錄在 05:00 才跨日重置）
+  const appDayStr = () => { const d = new Date(); if (d.getHours() < 5) d.setDate(d.getDate() - 1); return dateStrOf(d); };
+  const appYesterdayStr = () => { const d = new Date(); if (d.getHours() < 5) d.setDate(d.getDate() - 1); d.setDate(d.getDate() - 1); return dateStrOf(d); };
   const nowTime = () => {
     const d = new Date(), p = x => String(x).padStart(2, '0');
     return `${p(d.getHours())}:${p(d.getMinutes())}`;
@@ -292,7 +293,7 @@
   let state = loadState();
 
   function defaultState() {
-    return { date: todayStr(), settings: { ...DEFAULT_SETTINGS }, logs: [] };
+    return { date: appDayStr(), settings: { ...DEFAULT_SETTINGS }, logs: [] };
   }
   function buildCarryover(s) {
     if (!s.logs || s.logs.length === 0) return null;
@@ -309,9 +310,9 @@
       if (!raw) return defaultState();
       const s = JSON.parse(raw);
       s.settings = { ...DEFAULT_SETTINGS, ...(s.settings || {}) };
-      if (s.date !== todayStr()) {
+      if (s.date !== appDayStr()) {
         s.carryover = buildCarryover(s);
-        s.date = todayStr();
+        s.date = appDayStr();
         s.logs = [];
       }
       return s;
@@ -349,7 +350,7 @@
   function renderDashboard() {
     const goal = computeGoals(state.settings);
     const t = getTotals();
-    const co = (state.carryover && state.carryover.date === yesterdayStr()) ? state.carryover : {};
+    const co = (state.carryover && state.carryover.date === appYesterdayStr()) ? state.carryover : {};
     const proMakeup = Math.max(0, co.proGap || 0);
     const carbMakeup = Math.max(0, co.carbGap || 0);
     el('todayLabel').textContent = state.date;
