@@ -222,25 +222,22 @@
      unit:'pc' → 計件，營養為「每 1 件（顆/根）」含量
      ========================================================= */
   const FOOD_DB = [
-    // 秤重食材：unit:'g'，營養為「每 100g」含量；defaultAmount=快速預設值（空白送出時套用）
-    { id: 'chicken', name: 'Costco益活雞胸肉', unit: 'g',    protein: 23.0, carb: 0.0  },
-    { id: 'tofu',    name: '板豆腐',            unit: 'g',    protein: 8.5,  carb: 2.0,  defaultAmount: 100 },
-    { id: 'beef',    name: '牛小排',            unit: 'g',    protein: 18.0, carb: 0.0  },
-    { id: 'beef2',   name: '牛肉板鍵',           unit: 'g',    protein: 20.0, carb: 0.0  },
-    { id: 'shrimp',  name: '純生蝦仁',          unit: 'g',    protein: 21.0, carb: 0.0  },
-    { id: 'tahini',  name: '芝麻醬',            unit: 'g',    protein: 20.0, carb: 16.0 },
-    { id: 't65',     name: 'T65歐包 (麵粉重)', unit: 'g',    protein: 10.5, carb: 76.7, defaultAmount: 300 },
-    { id: 'pasta',    name: '義大利麵 (乾重)',    unit: 'g',    protein: 12.5, carb: 75.0 },
-    { id: 'pasta2',   name: 'Garofalo義大利麵 (乾重)', unit: 'g',    protein: 14.0, carb: 73.0 },
-    { id: 'rice',     name: '白飯（生米）',            unit: 'g',    protein: 7.8,  carb: 79.4, defaultAmount: 100 },
-    { id: 'avocado',  name: '酪梨',                  unit: 'g',    protein: 2.0,  carb: 9.0,  defaultAmount: 100 },
-    { id: 'cheese',   name: '起司絲',                unit: 'g',    protein: 23.5, carb: 5.0,  defaultAmount: 20 },
-    // 計件食材：unit:'pc'，營養為「每 1 件」含量
-    { id: 'mcdonalds', name: '麥當勞牛肉堡薯條可樂冰炫風', unit: 'pc', protein: 42.5, carb: 182.0, pieceName: '份', defaultAmount: 1 },
-    { id: 'egg',     name: '雞蛋',              unit: 'pc',   protein: 6.5,  carb: 0.6,  pieceName: '顆', defaultAmount: 2 },
-    { id: 'banana',  name: '香蕉',              unit: 'pc',   protein: 1.0,  carb: 25.0, pieceName: '根', defaultAmount: 1 },
-    // 計量匙食材：unit:'scoop'，營養為「每 1 湯匙(scoop)」含量
-    { id: 'whey',    name: 'ON金牌乳清蛋白 (摩卡卡布奇諾)', unit: 'scoop', protein: 24.0, carb: 3.0, pieceName: '湯匙', defaultAmount: 1 },
+    { id: 'chicken',   name: 'Costco益活雞胸肉',              cat: 'protein', unit: 'g',     protein: 23.0, carb: 0.0   },
+    { id: 'tofu',      name: '板豆腐',                        cat: 'protein', unit: 'g',     protein: 8.5,  carb: 2.0,  defaultAmount: 100 },
+    { id: 'beef',      name: '牛小排',                        cat: 'protein', unit: 'g',     protein: 18.0, carb: 0.0   },
+    { id: 'beef2',     name: '牛肉板鍵',                      cat: 'protein', unit: 'g',     protein: 20.0, carb: 0.0   },
+    { id: 'shrimp',    name: '純生蝦仁',                      cat: 'protein', unit: 'g',     protein: 21.0, carb: 0.0   },
+    { id: 'egg',       name: '雞蛋',                          cat: 'protein', unit: 'pc',    protein: 6.5,  carb: 0.6,  pieceName: '顆', defaultAmount: 2 },
+    { id: 'whey',      name: 'ON金牌乳清蛋白 (摩卡卡布奇諾)', cat: 'protein', unit: 'scoop', protein: 24.0, carb: 3.0,  pieceName: '湯匙', defaultAmount: 1 },
+    { id: 'cheese',    name: '起司絲',                        cat: 'protein', unit: 'g',     protein: 23.5, carb: 5.0,  defaultAmount: 20 },
+    { id: 't65',       name: 'T65歐包 (麵粉重)',              cat: 'carb',    unit: 'g',     protein: 10.5, carb: 76.7, defaultAmount: 300 },
+    { id: 'pasta',     name: '義大利麵 (乾重)',                cat: 'carb',    unit: 'g',     protein: 12.5, carb: 75.0  },
+    { id: 'pasta2',    name: 'Garofalo義大利麵 (乾重)',        cat: 'carb',    unit: 'g',     protein: 14.0, carb: 73.0  },
+    { id: 'rice',      name: '白飯（生米）',                   cat: 'carb',    unit: 'g',     protein: 7.8,  carb: 79.4, defaultAmount: 100 },
+    { id: 'banana',    name: '香蕉',                          cat: 'carb',    unit: 'pc',    protein: 1.0,  carb: 25.0, pieceName: '根', defaultAmount: 1 },
+    { id: 'tahini',    name: '芝麻醬',                        cat: 'other',   unit: 'g',     protein: 20.0, carb: 16.0  },
+    { id: 'avocado',   name: '酪梨',                          cat: 'other',   unit: 'g',     protein: 2.0,  carb: 9.0,  defaultAmount: 100 },
+    { id: 'mcdonalds', name: '麥當勞牛肉堡薯條可樂冰炫風',    cat: 'other',   unit: 'pc',    protein: 42.5, carb: 182.0, pieceName: '份', defaultAmount: 1 },
   ];
 
   /* 【增肌策略】熱量盈餘 → 直接反映在碳水倍率 */
@@ -333,10 +330,16 @@
   const amountLabel = el('amountLabel');
   const preview = el('preview');
 
-  FOOD_DB.forEach(f => {
-    const opt = document.createElement('option');
-    opt.value = f.id; opt.textContent = f.name;
-    foodSelect.appendChild(opt);
+  const CAT_LABEL = { protein: '🥩 蛋白質', carb: '🍚 碳水', other: '🥑 其他' };
+  ['protein', 'carb', 'other'].forEach(cat => {
+    const grp = document.createElement('optgroup');
+    grp.label = CAT_LABEL[cat];
+    FOOD_DB.filter(f => f.cat === cat).forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.id; opt.textContent = f.name;
+      grp.appendChild(opt);
+    });
+    foodSelect.appendChild(grp);
   });
 
   /* =========================================================
